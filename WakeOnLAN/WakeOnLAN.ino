@@ -1,13 +1,13 @@
 /*****************************************************************************/
 /*****************************************************************************/
 /*               STATUS: WORKING                                             */
-/*            TESTED IN: WeMos D1 mini                                       */
-/*                   AT: 2022.07.13                                          */
-/*     LAST COMPILED IN: LILIANA                                             */
+/*            TESTED IN: ESP-01                                              */
+/*                   AT: 2022.01.18                                          */
+/*     LAST COMPILED IN: KAPPA                                               */
 /*****************************************************************************/
 /*****************************************************************************/
 
-#define clid "wol_liliana"
+#define clid "wol_ES"
 
 
 
@@ -27,7 +27,8 @@ IPAddress computer_ip(255,255,255,255);
 /**
  * The targets MAC address to send the packet to
  */
-byte mac_0[] = { 0x18, 0xC0, 0x4D, 0x6C, 0xD0, 0xE6 };
+byte mac_0[] = { 0x30, 0x9C, 0x23, 0xAA, 0x5E, 0x1B };
+byte mac_1[] = { 0x1C, 0x1B, 0x0D, 0x9E, 0xE0, 0x49 };
 
 void sendWOL();
 
@@ -49,12 +50,12 @@ WiFiClient wifiClient;
 
 byte PIN_LED_CTRL_VALUE;
 
-const char* host = "estudiosustenta.myds.me";
-const char* notiHost = "notify.estudiosustenta.myds.me";
-const int port = 80;
-//const char* host = "192.168.1.72";
-//const char* notiHost = "192.168.1.72";
-//const int port = 1010;
+//const char* host = "estudiosustenta.myds.me";
+//const char* notiHost = "notify.estudiosustenta.myds.me";
+//const int port = 80;
+const char* host = "192.168.1.72";
+const char* notiHost = "192.168.1.72";
+const int port = 1010;
 const char* path = "/";
 
 // Declaramos o instanciamos un cliente que se conectará al Host
@@ -353,7 +354,7 @@ void loop() {
 
       requestLast();
 
-      String dataPOST = String("{\"clid\":\"") + clid + "\",\"ep\":[\"controll/wol_controller/wol_liliana/req\"]}";
+      String dataPOST = String("{\"clid\":\"") + clid + "\",\"ep\":[\"controll/wol_controller/wol_ES/req\"]}";
       Serial.println("[Sending POST request]");
       
       ///// ---------- BEGIN
@@ -364,7 +365,7 @@ void loop() {
       client.print("Host: ");
       client.println(notiHost);
       
-      client.println("User-Agent: wol_liliana/2022");
+      client.println("User-Agent: wol_ES/2022");
       
       client.println("Accept: */*");
       
@@ -450,10 +451,18 @@ void loop() {
                   }*/
 
                   if (line[line.length() - 5] == '0') {
-                    Serial.println("Servidor pide despertar a COMPU LILIANA");
+                    Serial.println("Servidor pide despertar a OMEGA");
                     WakeOnLan::sendWOL(computer_ip, UDP, mac_0, sizeof mac_0);
                     Serial.println("Notifying WOL packet sent successfully...");
-                    httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=true&info=waking_up_LILIANA&clid=" + clid);
+                    httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=true&info=waking_up_PHI&clid=" + clid);
+                    httpPost(String("http://") + host + "/controll/res.php", "application/json", "\"ok\"");
+                  }
+
+                  if (line[line.length() - 5] == '1') {
+                    Serial.println("Servidor pide despertar a KAPPA");
+                    WakeOnLan::sendWOL(computer_ip, UDP, mac_1, sizeof mac_1);
+                    Serial.println("Notifying WOL packet sent successfully...");
+                    httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=true&info=waking_up_PHI&clid=" + clid);
                     httpPost(String("http://") + host + "/controll/res.php", "application/json", "\"ok\"");
                   }
 
