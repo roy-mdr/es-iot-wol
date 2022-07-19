@@ -1,22 +1,58 @@
 /*****************************************************************************/
 /*****************************************************************************/
 /*               STATUS: WORKING                                             */
-/*            TESTED IN: WeMos D1 mini                                       */
-/*                   AT: 2022.07.13                                          */
-/*     LAST COMPILED IN: LILIANA                                             */
+/*            TESTED IN: NodeMCU v3                                          */
+/*                   AT: 2022.07.19                                          */
+/*     LAST COMPILED IN: PHI                                                 */
 /*****************************************************************************/
 /*****************************************************************************/
 
-#define clid "wol_liliana"
+#define clid "wol_jdm"
 
 
 
 
 #include <ESP8266HTTPClient.h> // Uses core ESP8266WiFi.h internally
-#include <config_wifi_roy.h>
+#include <ArduinoJson.h>
+#include <ArduinoJson.hpp>
 #include "WakeOnLan.h"
 
 
+
+// *************************************** CONFIG "config_wifi_roy"
+
+#include <config_wifi_roy.h>
+
+#define EEPROM_ADDR_CONNECTED_SSID 1       // Start saving connected network SSID from this memory address
+#define EEPROM_ADDR_CONNECTED_PASSWORD 30  // Start saving connected network Password from this memory address
+#define AP_SSID clid                       // Set your own Network Name (SSID)
+#define AP_PASSWORD "12345678"             // Set your own password
+
+ESP8266WebServer server(80);
+// WiFiServer wifiserver(80);
+
+// ***************************************
+
+
+
+// *************************************** CONFIG "no_poll_subscriber"
+
+#include <NoPollSubscriber.h>
+
+#define SUB_HOST "notify.estudiosustenta.myds.me"
+#define SUB_PORT 80
+// #define SUB_HOST "192.168.1.72"
+// #define SUB_PORT 1010
+#define SUB_PATH "/"
+
+// Declaramos o instanciamos un cliente que se conectará al Host
+WiFiClient sub_WiFiclient;
+
+// ***************************************
+
+
+
+// *************************************** CONFIG Wake On Lan
 
 WiFiUDP UDP;
 /**
@@ -27,44 +63,23 @@ IPAddress computer_ip(255,255,255,255);
 /**
  * The targets MAC address to send the packet to
  */
-byte mac_0[] = { 0x18, 0xC0, 0x4D, 0x6C, 0xD0, 0xE6 };
+// byte mac_0[] = { 0x18, 0xC0, 0x4D, 0x6C, 0xD0, 0xE6 };
 
 void sendWOL();
 
+// ***************************************
 
 
-HTTPClient http;
 
-ESP8266WebServer server(80);
-WiFiServer wifiserver(80);
-WiFiClient wifiClient;
-
-#define EEPROM_ADDR_CONNECTED_SSID 1       // Start saving connected network SSID from this memory address
-#define EEPROM_ADDR_CONNECTED_PASSWORD 30  // Start saving connected network Password from this memory address
-#define AP_SSID clid                       // Set your own Network Name (SSID)
-#define AP_PASSWORD "12345678"             // Set your own password
+// *************************************** CONFIG THIS SKETCH
 
 #define PIN_LED_OUTPUT 5 // Pin de LED que va a ser controlado // before was LED_BUILTIN instead of 5
-#define PIN_LED_CTRL 15 // Pin que cambia/constrola el estado del LED en PIN_LED_OUTPUT manualmente (TOGGLE LED si cambia a HIGH), si se presiona mas de 2 degundos TOGGLE el modo AP y STA+AP
+#define PIN_LED_CTRL 15 // Pin que cambia/controla el estado del LED en PIN_LED_OUTPUT manualmente (TOGGLE LED si cambia a HIGH), si se presiona mas de 2 degundos TOGGLE el modo AP y STA+AP
 
 byte PIN_LED_CTRL_VALUE;
 
-const char* host = "estudiosustenta.myds.me";
-const char* notiHost = "notify.estudiosustenta.myds.me";
-const int port = 80;
-//const char* host = "192.168.1.72";
-//const char* notiHost = "192.168.1.72";
-//const int port = 1010;
-const char* path = "/";
-
-// Declaramos o instanciamos un cliente que se conectará al Host
-WiFiClient client;
-
-/***** SET CONNECTION TIMEOUT *****/
-unsigned long to_timestamp = millis();
-unsigned int  to_track = 0;
-unsigned int  to_times = 0;
-unsigned int  to_timeout = 60 * 1000; // 60 seconds
+#define PUB_HOST "estudiosustenta.myds.me"
+// #define PUB_HOST "192.168.1.72"
 
 /***** SET PIN_LED_CTRL TIMER TO PRESS *****/
 unsigned long lc_timestamp = millis();
@@ -72,12 +87,17 @@ unsigned int  lc_track = 0;
 unsigned int  lc_times = 0;
 unsigned int  lc_timeout = 2 * 1000; // 2 seconds
 
+// ***************************************
+
 
 
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////// CONNECTION ///////////////////////////////////////////
+
+HTTPClient http;
+WiFiClient wifiClient;
 
 /////////////////////////////////////////////////
 /////////////////// HTTP GET ///////////////////
@@ -90,6 +110,7 @@ String httpGet(String url) {
   http.begin(wifiClient, url.c_str());
   
   // Send HTTP GET request
+  http.addHeader("X-Auth-Bearer", clid);
   int httpResponseCode = http.GET();
   
   Serial.print("HTTP Response code: ");
@@ -126,6 +147,7 @@ String httpPost(String url, String contentType, String data) {
   
   // Send HTTP GET request
   http.addHeader("Content-Type", contentType);
+  http.addHeader("X-Auth-Bearer", clid);
   int httpResponseCode = http.POST(data);
   
   if (httpResponseCode>0) {
@@ -241,26 +263,6 @@ void doInLoop() {
       lc_track = 0; // RESET TIMER
 
       if (do_toggle) { // IF PIN_LED_CTRL WAS PRESSED LESS THAN 2 SECONDS...
-        
-        // TOGGLE LED STATUS
-        digitalWrite(PIN_LED_OUTPUT, !digitalRead(PIN_LED_OUTPUT));
-      
-        Serial.print("LED status toggled via pin. Now LED is: ");
-        Serial.println(digitalRead(PIN_LED_OUTPUT));
-      
-        if (WiFi.status() == WL_CONNECTED) {
-
-          String led_state_string = "error";
-
-          if( digitalRead(PIN_LED_OUTPUT) == 1 ) {
-            led_state_string = "true";
-          } else if( digitalRead(PIN_LED_OUTPUT) == 0 ) {
-            led_state_string = "false";
-          }
-        
-          Serial.println("Notifying LED was changed manually...");
-          httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=" + led_state_string + "&info=pin_change_on_device&clid=" + clid);
-        }
       }
     }
   }
@@ -269,36 +271,81 @@ void doInLoop() {
 }
 
 /////////////////////////////////////////////////
-//////////////// GET LAST STATUS ////////////////
+///////////// DO ON PARSED PAYLOAD /////////////
 
-bool requestLast() {
+void onParsed(String line) {
 
-  Serial.println("Getting last value from database...");
+  Serial.print("Got JSON: ");
+  Serial.println(line);
 
-  String lastValue = httpGet(String("http://") + host + "/test/WeMosServer/controll/getLast.php");
-  Serial.print("Last value: ");
-  Serial.print(lastValue);
 
-  if ( lastValue == "1" ) {
-    Serial.println(" (on)");
-    digitalWrite(PIN_LED_OUTPUT, HIGH);   // Turn the LED on
-    Serial.println("Notifying we got the last value correctly...");
-    httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=true&info=device_checked_last_status&clid=" + clid);
-    return true;
-  } else if ( lastValue == "0" ) {
-    Serial.println(" (off)");
-    digitalWrite(PIN_LED_OUTPUT, LOW);   // Turn the LED off
-    Serial.println("Notifying we got the last value correctly...");
-    httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=false&info=device_checked_last_status&clid=" + clid);
-    return true;
-  } else {
-    Serial.println();
-    Serial.print("CAN NOT CONNECT TO HOST: ");
-    Serial.println(host);
-    return false;
+
+  ///// Deserialize JSON. from: https://arduinojson.org/v6/assistant
+
+  // Stream& input;
+
+  StaticJsonDocument<80> filter;
+
+  JsonObject filter_e = filter.createNestedObject("e");
+  filter_e["type"] = true;
+
+  JsonObject filter_e_detail = filter_e.createNestedObject("detail");
+  filter_e_detail["device"] = true;
+  filter_e_detail["data"] = true;
+
+  StaticJsonDocument<192> doc;
+
+  DeserializationError error = deserializeJson(doc, line, DeserializationOption::Filter(filter));
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  const char* e_type = doc["e"]["type"]; // Event type
+
+  const char* e_detail_device = doc["e"]["detail"]["device"]; // Device origin
+  const char* e_detail_data = doc["e"]["detail"]["data"]; // Event detail data
+
+  ///// End Deserialize JSON
+
+
+
+  if (strcmp(e_type, "wol") == 0) {
+    Serial.print("Servidor pide despertar a ");
+    Serial.println(e_detail_device);
+
+    // // Parse IP
+    // byte myIP[4];
+    // sscanf(val.c_str(), "%hhu.%hhu.%hhu.%hhu", &myIP[0], &myIP[1], &myIP[2], &myIP[3]);
+
+    // Parse MAC address
+    byte macAddrTarget[6];
+    sscanf(e_detail_data, "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx", &macAddrTarget[0], &macAddrTarget[1], &macAddrTarget[2], &macAddrTarget[3], &macAddrTarget[4], &macAddrTarget[5]);
+
+    Serial.print(macAddrTarget[0], HEX);
+    Serial.print(macAddrTarget[1], HEX);
+    Serial.print(macAddrTarget[2], HEX);
+    Serial.print(macAddrTarget[3], HEX);
+    Serial.print(macAddrTarget[4], HEX);
+    Serial.println(macAddrTarget[5], HEX);
+
+    Serial.print(macAddrTarget[0], DEC);
+    Serial.print(macAddrTarget[1], DEC);
+    Serial.print(macAddrTarget[2], DEC);
+    Serial.print(macAddrTarget[3], DEC);
+    Serial.print(macAddrTarget[4], HEX);
+    Serial.println(macAddrTarget[5], DEC);
+
+    WakeOnLan::sendWOL(computer_ip, UDP, macAddrTarget, sizeof macAddrTarget);
+    Serial.println("Notifying WOL packet sent successfully...");
+    Serial.print(httpPost(String("http://") + PUB_HOST + "/controll/res.php?device=" + e_detail_device + "&shout=true&log=waking_up_by_request&state_changed=true", "application/json", "{\"type\":\"change\", \"data\":1, \"whisper\":0}"));
   }
 
 }
+
+
 
 
 
@@ -339,165 +386,6 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  /***** FUNCTIONS IN LOOP *****/
-  doInLoop();
-  /***** ----------------- *****/
-  //Serial.println("loop_doInLoop");
-  if (WiFi.status() == WL_CONNECTED) {
-    // Do while WiFi is connected
-    
-    Serial.printf("\n[Connecting to %s ... ", notiHost);
-    // Intentamos conectarnos
-    if (client.connect(notiHost, port)) {
-      Serial.println("connected]");
-
-      requestLast();
-
-      String dataPOST = String("{\"clid\":\"") + clid + "\",\"ep\":[\"controll/wol_controller/wol_liliana/req\"]}";
-      Serial.println("[Sending POST request]");
-      
-      ///// ---------- BEGIN
-      client.print("POST ");
-      client.print(path);
-      client.println(" HTTP/1.1");
-      
-      client.print("Host: ");
-      client.println(notiHost);
-      
-      client.println("User-Agent: wol_liliana/2022");
-      
-      client.println("Accept: */*");
-      
-      client.println("Content-Type: application/json");
-
-      client.print("Content-Length: ");
-      client.println(dataPOST.length());
-      client.println();
-      client.print(dataPOST);
-
-      Serial.println("[Response:]");
-
-      bool headersDone = false;
-      bool readStr = false;
-
-      // Mientras la conexion perdure
-      while (client.connected()) {
-
-        if ( millis() != to_timestamp ) { // "!=" intead of ">" tries to void possible bug when millis goes back to 0
-          to_track++;
-          to_timestamp = millis();
-        }
-
-        if ( to_track > to_timeout ) {
-          // DO TIMEOUT!
-          to_times++;
-          to_track = 0;
-          Serial.print("[timeout #");
-          Serial.print(to_times);
-          Serial.println("]");
-          client.stop();
-          
-          if (to_times > 3) {
-            
-            to_times = 0;
-            
-            if (WiFi.getMode() != WIFI_AP_STA) {
-              Serial.println("restarting...");
-              ESP.restart(); // tells the SDK to reboot, not as abrupt as ESP.reset()
-            }
-            
-          }
-        }
-
-        /***** SAME FUNCTIONS IN LOOP *****/
-//yield(); // = delay(0);
-//Serial.println("loop_client_connected");
-        doInLoop();
-        /***** because this while loop hogs the loop *****/
-
-        // Si existen datos disponibles
-        if (client.available()) {
-          
-//Serial.println("loop_client_available");
-
-          to_track = 0;
-          //to_times = 0;
-
-          String line = client.readStringUntil('\n');
-          Serial.println(line);
-          
-          if ( (line.length() == 1) && (line[0] == '\r') ) {
-            if (headersDone) {
-              client.stop();
-            } else {
-              Serial.println("---[HEADERS END]---");
-              headersDone = true;
-              readStr = false;
-            }
-          } else {
-            if (headersDone) {
-              if (readStr) {
-                ///// START LOGIC
-                Serial.println("^^^^^");
-
-                if (line[2] != '0') { // PREVENT BUG WHEN NOOP SIGNAL IS SENT (''0'')
-                
-                  /*if (line[line.length() - 4] == '0') {
-                    Serial.println("Servidor pide cambiar LED a estado: off");
-                    digitalWrite(PIN_LED_OUTPUT, LOW);   // Turn the LED on
-                    Serial.println("Notifying LED status changed successfully...");
-                    httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=false&info=changed_by_request&clid=" + clid);
-                  }*/
-
-                  if (line[line.length() - 5] == '0') {
-                    Serial.println("Servidor pide despertar a COMPU LILIANA");
-                    WakeOnLan::sendWOL(computer_ip, UDP, mac_0, sizeof mac_0);
-                    Serial.println("Notifying WOL packet sent successfully...");
-                    httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=true&info=waking_up_LILIANA&clid=" + clid);
-                    httpPost(String("http://") + host + "/controll/res.php", "application/json", "\"ok\"");
-                  }
-
-                  /*if (line[line.length() - 5] == 'x') {
-                    Serial.print("Servidor solicita el estado actual del LED. Estado actual: ");
-                    Serial.println(digitalRead(PIN_LED_OUTPUT));
-                    if (digitalRead(PIN_LED_OUTPUT) == 1) {
-                      httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=true&info=current_status_requested&clid=" + clid);
-                    }
-                    if (digitalRead(PIN_LED_OUTPUT) == 0) {
-                      httpGet(String("http://") + host + "/test/WeMosServer/controll/response.php?set=false&info=current_status_requested&clid=" + clid);
-                    }
-
-                  }*/
-/* PARA COMPROBAR QUE PASA SI SE REINICIA EL MODULO Y EN EL INTER CAMBIA EL ESTADO (EN WEB)
-Serial.println("restarting...");
-ESP.restart(); // tells the SDK to reboot, not as abrupt as ESP.reset()
-*/
-                } else {
-                  Serial.println("(NOOP)");
-                }
-                
-              }
-              readStr = !readStr;
-            }
-
-
-          }
-        }
-      }
-      ///// ---------- END
-      
-      // Una vez el servidor envia todos los datos requeridos se desconecta y el programa continua
-      Serial.println("\n[Disconnecting...]");
-      client.stop();
-      Serial.println("\n[Disconnected]");
-    } else {
-      Serial.println("connection failed!]");
-      client.stop();
-    }
-
-  } else {
-    // Do while WiFi is NOT connected
-    //Serial.println("disconnected");
-  }
+  handleNoPollSubscription(sub_WiFiclient, SUB_HOST, SUB_PORT, SUB_PATH, "POST", String("{\"clid\":\"") + clid + "\",\"ep\":[\"controll/wol_controller/" + clid + "/req\"]}", String(clid) + "/2022", doInLoop, [](){}, onParsed);
   
 }
