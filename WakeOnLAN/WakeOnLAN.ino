@@ -1,13 +1,13 @@
 /*****************************************************************************/
 /*****************************************************************************/
 /*               STATUS: WORKING                                             */
-/*            TESTED IN: ESP-01                                              */
-/*                   AT: 2022.07.19                                          */
-/*     LAST COMPILED IN: PHI                                                 */
+/*            TESTED IN: Node MCU ESP12E                                     */
+/*                   AT: 2022.07.30                                          */
+/*     LAST COMPILED IN: Liliana                                             */
 /*****************************************************************************/
 /*****************************************************************************/
 
-#define clid "wol_jdm"
+#define clid "wol_liliana"
 
 
 
@@ -174,6 +174,70 @@ String httpPost(String url, String contentType, String data) {
 ///////////////////////////////////////////// HELPERS /////////////////////////////////////////////
 
 /////////////////////////////////////////////////
+//////////////// KEEP-ALIVE LOOP ////////////////
+
+int connId;
+String connSecret;
+long connTimeout;
+bool runAliveLoop = false;
+
+/***** SET TIMEOUT *****/
+unsigned long al_timestamp = millis();
+/*unsigned int  al_times = 0;*/
+unsigned long  al_timeout = 0;
+unsigned int  al_track = 0; // al_track = al_timeout; TO: execute function and then start counting
+
+void handleAliveLoop() {
+
+  if (!runAliveLoop) {
+    return;
+  }
+
+  al_timeout = connTimeout - 3000; // connTimeout - 3 seconds
+
+  if ( millis() != al_timestamp ) { // "!=" intead of ">" tries to void possible bug when millis goes back to 0
+    al_track++;
+    al_timestamp = millis();
+  }
+
+  if ( al_track > al_timeout ) {
+    // DO TIMEOUT!
+    /*al_times++;*/
+    al_track = 0;
+
+    // RUN THIS FUNCTION!
+    String response = httpPost(String("http://") + SUB_HOST + ":" + SUB_PORT + "/alive", "application/json", String("{\"connid\":") + connId + ",\"secret\":\"" + connSecret + "\"}");
+
+    ///// Deserialize JSON. from: https://arduinojson.org/v6/assistant
+
+    // Stream& response;
+
+    StaticJsonDocument<96> doc;
+
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (error) {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.f_str());
+      runAliveLoop = false;
+      return;
+    }
+
+    int connid = doc["connid"]; // 757
+    const char* secret = doc["secret"]; // "zbUIE"
+    long timeout = doc["timeout"]; // 300000
+
+    ///// End Deserialize JSON
+
+    connId = connid;
+    connSecret = (String)secret;
+    connTimeout = timeout;
+    runAliveLoop = true;
+  }
+
+}
+
+/////////////////////////////////////////////////
 //////////////// DETECT CHANGES ////////////////
 
 bool changed(byte gotStat, byte &compareVar) {
@@ -204,6 +268,8 @@ bool changed(byte gotStat, byte &compareVar) {
 void doInLoop() {
 
   //Serial.println("loop");
+
+  handleAliveLoop();
   
   wifiConfigLoop(server);
 
@@ -237,7 +303,7 @@ void doInLoop() {
             break;
           case WIFI_AP_STA: // case 3:
             //Serial.println("Station and Access Point (STA+AP)");
-            ESP_STATION(server);
+            ESP_STATION(server, true);
             break;
           default:
             Serial.print("WiFi mode NPI xD: ");
@@ -282,20 +348,11 @@ void onParsed(String line) {
 
   ///// Deserialize JSON. from: https://arduinojson.org/v6/assistant
 
-  // Stream& input;
+  // Stream& line;
 
-  StaticJsonDocument<80> filter;
+  StaticJsonDocument<512> doc;
 
-  JsonObject filter_e = filter.createNestedObject("e");
-  filter_e["type"] = true;
-
-  JsonObject filter_e_detail = filter_e.createNestedObject("detail");
-  filter_e_detail["device"] = true;
-  filter_e_detail["data"] = true;
-
-  StaticJsonDocument<192> doc;
-
-  DeserializationError error = deserializeJson(doc, line, DeserializationOption::Filter(filter));
+  DeserializationError error = deserializeJson(doc, line);
 
   if (error) {
     Serial.print(F("deserializeJson() failed: "));
@@ -303,10 +360,20 @@ void onParsed(String line) {
     return;
   }
 
-  const char* e_type = doc["e"]["type"]; // Event type
+  long long iat = doc["iat"]; // 1659215080499
 
-  const char* e_detail_device = doc["e"]["detail"]["device"]; // Device origin
-  const char* e_detail_data = doc["e"]["detail"]["data"]; // Event detail data
+  const char* ep_requested = doc["ep"]["requested"]; // "controll/wol_controller/wol_liliana/req"
+  const char* ep_emitted = doc["ep"]["emitted"]; // "controll/wol_controller/wol_liliana/req"
+
+  const char* e_type = doc["e"]["type"]; // "info"
+
+  JsonObject e_detail = doc["e"]["detail"];
+  const char* e_detail_device = e_detail["device"]; // "pc_liliana"
+  int e_detail_whisper = e_detail["whisper"]; // 1284
+  const char* e_detail_data = e_detail["data"]; // "1C:1B:0D:9E:E0:49"
+  int e_detail_connid = e_detail["connid"]; // 1283
+  const char* e_detail_secret = e_detail["secret"]; // "M2mzV"
+  long e_detail_timeout = e_detail["timeout"]; // 300000
 
   ///// End Deserialize JSON
 
@@ -340,7 +407,14 @@ void onParsed(String line) {
 
     WakeOnLan::sendWOL(computer_ip, UDP, macAddrTarget, sizeof macAddrTarget);
     Serial.println("Notifying WOL packet sent successfully...");
-    Serial.print(httpPost(String("http://") + PUB_HOST + "/controll/res.php?device=" + e_detail_device + "&shout=true&log=waking_up_by_request&state_changed=true", "application/json", "{\"type\":\"change\", \"data\":1, \"whisper\":0}"));
+    Serial.print(httpPost(String("http://") + PUB_HOST + "/controll/res.php?device=" + e_detail_device + "&shout=true&log=waking_up_by_request&state_changed=false", "application/json", String("{\"type\":\"wake_on_lan\", \"data\":\"Waking up ") + e_detail_device + "\", \"whisper\":" + e_detail_connid + "}"));
+  }
+
+  if (strcmp(ep_emitted, "@SERVER@") == 0) {
+    connId = e_detail_connid;
+    connSecret = (String)e_detail_secret;
+    connTimeout = e_detail_timeout;
+    runAliveLoop = true;
   }
 
 }
@@ -371,7 +445,7 @@ void setup() {
   // Serial.println("Starting server anyway xD ...");
   // ESP_AP_STA(server, AP_SSID, AP_PASSWORD);
   /******************************/
-  ESP_STATION(server); // Start in AP mode
+  ESP_STATION(server, true); // Start in AP mode
 
   setLedModeInverted(true);
 }
