@@ -242,6 +242,9 @@ void handleAliveLoop() {
     connSecret = (String)secret;
     connTimeout = timeout;
     runAliveLoop = true;
+
+
+    updateControllerData();
   }
 
 }
@@ -269,6 +272,14 @@ bool changed(byte gotStat, byte &compareVar) {
     //compareVar = gotStat;
     return false;
   }
+}
+
+/////////////////////////////////////////////////
+//////////// UPDATE CONTROLLER DATA ////////////
+
+void updateControllerData() {
+  Serial.print("Updating controller data in server... ");
+  Serial.println(httpPost(String("http://") + PUB_HOST + "/controll/controller.php", "application/json", String("{\"controller\":\"") + clid + "\",\"ipv4_interface\":\"" + WiFi.localIP().toString().c_str() + "\"}"));
 }
 
 /////////////////////////////////////////////////
@@ -430,6 +441,13 @@ void onParsed(String line) {
 
 }
 
+/////////////////////////////////////////////////
+////////////// ON-CONNECTED LOGIC //////////////
+
+void onConnected() {
+  updateControllerData();
+}
+
 
 
 
@@ -540,6 +558,6 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
 
-  handleNoPollSubscription(sub_WiFiclient, SUB_HOST, SUB_PORT, SUB_PATH, "POST", String("{\"clid\":\"") + clid + "\",\"ep\":[\"controll/wol_controller/" + clid + "/req\"]}", String(clid) + "/2022", doInLoop, [](){}, onParsed);
+  handleNoPollSubscription(sub_WiFiclient, SUB_HOST, SUB_PORT, SUB_PATH, "POST", String("{\"clid\":\"") + clid + "\",\"ep\":[\"controll/wol_controller/" + clid + "/req\"]}", String(clid) + "/2022", doInLoop, onConnected, onParsed);
   
 }
