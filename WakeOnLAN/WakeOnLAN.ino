@@ -7,7 +7,7 @@
 /*****************************************************************************/
 /*****************************************************************************/
 
-#define clid "wol_jdm"
+#define clid "wol_ES"
 
 
 
@@ -296,14 +296,14 @@ void doInLoop() {
             break;
           case WIFI_STA: // case 1:
             //Serial.println("Station (STA)");
-            ESP_AP_STA(server, AP_SSID, AP_PASSWORD);
+            ESP_AP_STA();
             break;
           case WIFI_AP: // case 2:
             //Serial.println("Access Point (AP)");
             break;
           case WIFI_AP_STA: // case 3:
             //Serial.println("Station and Access Point (STA+AP)");
-            ESP_STATION(server, true);
+            ESP_STATION(true);
             break;
           default:
             Serial.print("WiFi mode NPI xD: ");
@@ -439,13 +439,12 @@ void setup() {
   pinMode(PIN_LED_OUTPUT, OUTPUT); // Initialize as an output // To controll LED in this pin
   pinMode(PIN_LED_CTRL, INPUT);    // Initialize as an input // To toggle LED status manually and TOGGLE AP/STA+AP MODE (long press)
 
-  setupWifiConfigServer(server, EEPROM_ADDR_CONNECTED_SSID, EEPROM_ADDR_CONNECTED_PASSWORD);
+  setupWifiConfigServer(server, EEPROM_ADDR_CONNECTED_SSID, EEPROM_ADDR_CONNECTED_PASSWORD, AP_SSID, AP_PASSWORD);
 
   /*** START SERVER ANYWAY XD ***/
   // Serial.println("Starting server anyway xD ...");
-  // ESP_AP_STA(server, AP_SSID, AP_PASSWORD);
+  // ESP_AP_STA();
   /******************************/
-  ESP_STATION(server, true); // Start in AP mode
 
   setLedModeInverted(true);
 }
