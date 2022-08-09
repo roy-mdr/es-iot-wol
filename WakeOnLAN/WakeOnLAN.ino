@@ -35,6 +35,15 @@ ESP8266WebServer server(80);
 
 
 
+// *************************************** CONFIG OTA LAN SERVER
+
+ESP8266WebServer serverOTA(5000);
+const String serverIndex = String("<div><p>Current sketch size: ") + ESP.getSketchSize() + " bytes</p><p>Max space available: " + ESP.getFreeSketchSpace() + " bytes</p></div><form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>";
+
+// ***************************************
+
+
+
 // *************************************** CONFIG "no_poll_subscriber"
 
 #include <NoPollSubscriber.h>
@@ -273,6 +282,8 @@ void doInLoop() {
   
   wifiConfigLoop(server);
 
+  serverOTA.handleClient();
+
   if ( digitalRead(PIN_LED_CTRL) == 1 ) { // IF PIN_LED_CTRL IS PRESSED
     
     // START TIMER
@@ -447,6 +458,76 @@ void setup() {
   /******************************/
 
   setLedModeInverted(true);
+
+
+
+
+
+  serverOTA.on("/", HTTP_GET, []() {
+
+    // /*
+    Serial.print("ESP.getBootMode(): ");
+    Serial.println(ESP.getBootMode());
+    Serial.print("ESP.getSdkVersion(): ");
+    Serial.println(ESP.getSdkVersion());
+    Serial.print("ESP.getBootVersion(): ");
+    Serial.println(ESP.getBootVersion());
+    Serial.print("ESP.getChipId(): ");
+    Serial.println(ESP.getChipId());
+    Serial.print("ESP.getFlashChipSize(): ");
+    Serial.println(ESP.getFlashChipSize());
+    Serial.print("ESP.getFlashChipRealSize(): ");
+    Serial.println(ESP.getFlashChipRealSize());
+    Serial.print("ESP.getFlashChipSizeByChipId(): ");
+    Serial.println(ESP.getFlashChipSizeByChipId());
+    Serial.print("ESP.getFlashChipId(): ");
+    Serial.println(ESP.getFlashChipId());
+    Serial.print("ESP.getFreeHeap(): ");
+    Serial.println(ESP.getFreeHeap());
+    Serial.print("ESP.getSketchSize(): ");
+    Serial.println(ESP.getSketchSize());
+    Serial.print("ESP.getFreeSketchSpace(): ");
+    Serial.println(ESP.getFreeSketchSpace());
+    Serial.print("ESP.getSketchMD5(): ");
+    Serial.println(ESP.getSketchMD5());
+    // */
+
+    serverOTA.sendHeader("Connection", "close");
+    serverOTA.send(200, "text/html", serverIndex);
+  });
+  serverOTA.on("/update", HTTP_POST, []() {
+    serverOTA.sendHeader("Connection", "close");
+    serverOTA.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    ESP.restart();
+  }, []() {
+    HTTPUpload& upload = serverOTA.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+      Serial.setDebugOutput(true);
+      Serial.printf("Update: %s\n", upload.filename.c_str());
+      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+      if (!Update.begin(maxSketchSpace)) { //start with max available size
+        Update.printError(Serial);
+        serverOTA.send(200, "text/plain", "ERROR: Sketch too big?");
+      }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        Update.printError(Serial);
+        serverOTA.send(200, "text/plain", "ERROR: Error writing sketch");
+      }
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) { //true to set the size to the current progress
+        Serial.printf("Update Success!\nNew sketch using: %u\n bytes.\nRebooting...\n", upload.totalSize);
+        serverOTA.send(200, "text/plain", "OK");
+      } else {
+        Update.printError(Serial);
+        serverOTA.send(200, "text/plain", "ERROR: No update.end() ?");
+      }
+      Serial.setDebugOutput(false);
+    }
+    yield();
+  });
+  serverOTA.begin();
+
 }
 
 
