@@ -23,7 +23,8 @@
 
 #include <config_wifi_roy.h>
 
-#define EEPROM_ADDR_CONNECTED_SSID 1       // Start saving connected network SSID from this memory address
+#define EEPROM_ADDR_EARLY_UNPLUG 1         // Start saving connected network SSID from this memory address
+#define EEPROM_ADDR_CONNECTED_SSID 2       // Start saving connected network SSID from this memory address
 #define EEPROM_ADDR_CONNECTED_PASSWORD 30  // Start saving connected network Password from this memory address
 #define AP_SSID clid                       // Set your own Network Name (SSID)
 #define AP_PASSWORD "12345678"             // Set your own password
@@ -291,7 +292,7 @@ void doInLoop() {
 
   handleAliveLoop();
   
-  wifiConfigLoop(server);
+  wifiConfigLoop();
 
   serverOTA.handleClient();
 
@@ -468,7 +469,7 @@ void setup() {
   pinMode(PIN_LED_OUTPUT, OUTPUT); // Initialize as an output // To controll LED in this pin
   pinMode(PIN_LED_CTRL, INPUT);    // Initialize as an input // To toggle LED status manually and TOGGLE AP/STA+AP MODE (long press)
 
-  setupWifiConfigServer(server, EEPROM_ADDR_CONNECTED_SSID, EEPROM_ADDR_CONNECTED_PASSWORD, AP_SSID, AP_PASSWORD);
+  setupWifiConfigServer(server, EEPROM_ADDR_EARLY_UNPLUG, EEPROM_ADDR_CONNECTED_SSID, EEPROM_ADDR_CONNECTED_PASSWORD, AP_SSID, AP_PASSWORD);
 
   /*** START SERVER ANYWAY XD ***/
   // Serial.println("Starting server anyway xD ...");
