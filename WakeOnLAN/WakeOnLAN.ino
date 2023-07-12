@@ -2,8 +2,8 @@
 /*****************************************************************************/
 /*               STATUS: WORKING                                             */
 /*            TESTED IN: ESP-01                                              */
-/*                   AT: 2022.07.30                                          */
-/*     LAST COMPILED IN: PHI                                                 */
+/*                   AT: 2023.07.11                                          */
+/*     LAST COMPILED IN: KAPPA                                               */
 /*****************************************************************************/
 /*****************************************************************************/
 
@@ -23,7 +23,7 @@
 
 #include <config_wifi_roy.h>
 
-#define EEPROM_ADDR_EARLY_UNPLUG 1         // Start saving connected network SSID from this memory address
+#define EEPROM_ADDR_EARLY_UNPLUG 1         // Start saving early-unplug counter from this memory address
 #define EEPROM_ADDR_CONNECTED_SSID 2       // Start saving connected network SSID from this memory address
 #define EEPROM_ADDR_CONNECTED_PASSWORD 30  // Start saving connected network Password from this memory address
 #define AP_SSID clid                       // Set your own Network Name (SSID)
